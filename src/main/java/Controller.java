@@ -1,8 +1,10 @@
 public class Controller {
-    private static int step = 1;
+    private int step = 1;
     public static void main(String[] args) {
         Building building = new Building();
         Controller controller = new Controller();
+        System.out.println("**************** STEP" +  controller.step++ + " ****************" );
+        System.out.println(building);
         while (building.isFloorsEmpty() || !(building.getLift().getPeople().isEmpty())){
             controller.upp(building);
             controller.down(building);
