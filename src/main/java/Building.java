@@ -9,18 +9,20 @@ public class Building {
     private final int minFloor = reader.getMinFloor();
     private final int maxFloor = reader.getMaxFloor();
     private List<Floor> floors;
-    Lift lift;
+    private Lift lift;
+    private int randomCountFloors;
+
 
     public Building() {
         Random random = new Random();
-        int randomFloor = random.nextInt(minFloor, maxFloor + 1);
-        floors = new ArrayList<>(randomFloor);
-        fillFloors(randomFloor);
+        randomCountFloors = random.nextInt(minFloor, maxFloor + 1);
+        floors = new ArrayList<>(randomCountFloors);
+        fillFloors();
         lift = new Lift();
     }
 
-    private void fillFloors(int randomFloor) {
-        for (int i = 1; i <= randomFloor; i++) {
+    private void fillFloors() {
+        for (int i = 1; i <= randomCountFloors; i++) {
             floors.add(new Floor(i));
         }
     }
@@ -38,11 +40,24 @@ public class Building {
         return floors;
     }
 
+    public Lift getLift() {
+        return lift;
+    }
+
+    public boolean isFloorsEmpty() {
+        for (Floor floor : floors) {
+            if (!floor.queue.isEmpty()){
+                return true;
+            }
+        }
+        return false;
+    }
+
     public class Lift {
         private final LiftPropertiesReader reader = new LiftPropertiesReader();
         private final int capacity = reader.getMaxCapacity();
         private final int startFloor = reader.getStartFloor();
-        private final List<Person> people;
+        private List<Person> people;
         private int floor = startFloor;
         private boolean direct = true;
 
@@ -51,25 +66,77 @@ public class Building {
             people = new ArrayList<>(capacity);
         }
 
-        public void personLeaveToElevator(Person person) {
-            people.remove(person);
+        public List<Person> leaveFromLift() {
+            List<Person> newList = new ArrayList<>(capacity);
+            for (Person person : people) {
+                if (person.needFloor != floor) {
+                    newList.add(person);
+                } else {
+                    floors.get(floor - 1).countDeliveredPeople++;
+                }
+            }
+            return newList;
+        }
+
+        public void addToLift() {
+            while (people.size() < capacity && !(floors.get(floor - 1).queue.isEmpty())) {
+                if (direct && (containsPeopleNeedsUpp(floors.get(floor - 1).queue))) {
+                    for (int i = 0; i < floors.get(floor - 1).queue.size(); i++) {
+                        if (floors.get(floor - 1).queue.get(i).needFloor > floor) {
+                            people.add(floors.get(floor - 1).queue.get(i));
+                            floors.get(floor - 1).queue.remove(i);
+                            break;
+                        }
+                    }
+                } else if (!direct && containsPeopleNeedsDown(floors.get(floor - 1).queue)) {
+                    for (int i = 0; i < floors.get(floor - 1).queue.size(); i++) {
+                        if (floors.get(floor - 1).queue.get(i).needFloor < floor) {
+                            people.add(floors.get(floor - 1).queue.get(i));
+                            floors.get(floor - 1).queue.remove(i);
+                            break;
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
         }
 
         @Override
         public String toString() {
-            StringBuilder elevator = new StringBuilder();
+            StringBuilder lift = new StringBuilder();
             for (Person person : people) {
-                elevator.append(person.toString());
+                lift.append(person.toString());
             }
-            return elevator.toString();
+            return lift.toString();
+        }
+
+        private boolean containsPeopleNeedsUpp(ArrayList<Person> queue) {
+            for (Person person :
+                    queue) {
+                if (person.needFloor > floor) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean containsPeopleNeedsDown(ArrayList<Person> queue) {
+            for (Person person :
+                    queue) {
+                if (person.needFloor < floor) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public List<Person> getPeople() {
             return people;
         }
 
-        public int getCapacity() {
-            return capacity;
+        public void setPeople(List<Person> people) {
+            this.people = people;
         }
 
         public int getFloor() {
@@ -79,12 +146,16 @@ public class Building {
         public void setFloor(int floor) {
             this.floor = floor;
         }
+
+        public void setDirect(boolean direct) {
+            this.direct = direct;
+        }
     }
 
     public class Floor {
         private int countDeliveredPeople = 0;
         private final FloorPropertiesReader reader = new FloorPropertiesReader();
-        private List<Person> queue;
+        private ArrayList<Person> queue;
         private final int minNumberOfPeopleOnFloor = reader.getMinQueue();
         private final int maxNumberOfPeopleOnFloor = reader.getMaxQueue();
         private int numberOfPeopleOnFloor;
@@ -92,7 +163,7 @@ public class Building {
 
         public Floor(int floor) {
             this.floor = floor;
-            queue = new LinkedList<>();
+            queue = new ArrayList<>();
             fillQueueOnFloor();
         }
 
@@ -100,91 +171,68 @@ public class Building {
             Random random = new Random();
             this.numberOfPeopleOnFloor = random.nextInt(minNumberOfPeopleOnFloor, maxNumberOfPeopleOnFloor + 1);
             for (int i = 1; i <= numberOfPeopleOnFloor; i++) {
-                int needFloorForPerson = random.nextInt(1, 11);
+                int needFloorForPerson = random.nextInt(1, randomCountFloors);
                 if (needFloorForPerson != floor) {
                     queue.add(new Person(floor, needFloorForPerson));
                 }
             }
         }
 
-        public int getNumberOfPeopleOnFloor() {
-            return numberOfPeopleOnFloor;
-        }
-
-        public int getFloor() {
-            return floor;
-        }
-
-        public List<Person> getQueue() {
-            return queue;
-        }
-
         @Override
         public String toString() {
             StringBuilder toBuildFloor = new StringBuilder();
-            int howManyPeopleInLift = lift.people.size();
+            int liftLength = lift.toString().length();
             toBuildFloor.append("[").append(floor).append("]  ");
-            if (floor > 9){
+            if (floor > 9) {
                 toBuildFloor.append("\b");
             }
-            toBuildFloor.append(countDeliveredPeople);
-            if (floor == lift.floor){
-                if (lift.direct){
-                    toBuildFloor.append(" |^           ");
-                    toBuildFloor.append(howManyPeopleInLift(howManyPeopleInLift))
-                            .append(lift).append("\b\b^| ");
-                }
-                else {
-                    toBuildFloor.append(" |v           ")
-                            .append(howManyPeopleInLift(howManyPeopleInLift))
-                            .append(lift).append("\b\bv| ");
-                }
+            toBuildFloor.append(countDeliveredPeople).append("  ");
+            if (countDeliveredPeople > 9){
+                toBuildFloor.append("\b");
             }
-            else {
-                toBuildFloor.append(" |           ");
-                toBuildFloor.append(lift).append("| ");
+            if (floor == lift.floor) {
+                if (lift.direct) {
+                    toBuildFloor.append("|^               ")
+                            .append(howManyPeopleInLift(liftLength))
+                            .append(lift).append("^| ");
+                } else {
+                    toBuildFloor.append("|v               ")
+                            .append(howManyPeopleInLift(liftLength))
+                            .append(lift).append("v| ");
+                }
+            } else {
+                toBuildFloor.append("|                 ");
+                toBuildFloor.append("| ");
             }
             for (Person person : queue) {
                 toBuildFloor.append(person.toString());
             }
-            if (!queue.isEmpty()){
+            if (!queue.isEmpty()) {
                 toBuildFloor.append("\b");
             }
             return toBuildFloor + "\n";
         }
-        private String howManyPeopleInLift(int howManyPeopleInLift){
-                return switch (howManyPeopleInLift){
-                    case 5 -> "\b\b\b\b\b\b\b\b\b\b";
-                    case 4 -> "\b\b\b\b\b\b\b\b";
-                    case 3 -> "\b\b\b\b\b\b";
-                    case 2 -> "\b\b\b\b";
-                    case 1 -> "\b\b";
-                    case 0 -> "";
-                    default -> throw new RuntimeException();
-                };
+
+        private String howManyPeopleInLift(int liftLength) {
+            StringBuilder removeString = new StringBuilder();
+            for (int i = 0; i < liftLength; i++){
+                removeString.append("\b");
+            }
+            return removeString.toString();
         }
     }
 
     public class Person {
-        private int currentFloor;
-        private int needFloor;
+        private final int currentFloor;
+        private final int needFloor;
 
         public Person(int currentFloor, int neededFloor) {
             this.currentFloor = currentFloor;
             this.needFloor = neededFloor;
         }
-
         @Override
         public String toString() {
             return needFloor + " ";
-        }
-
-        public int getCurrentFloor() {
-            return currentFloor;
-        }
-
-        public int getNeededFloor() {
-            return needFloor;
         }
     }
 }
